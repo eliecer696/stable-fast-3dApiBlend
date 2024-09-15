@@ -187,49 +187,52 @@ def show_mask_img(input_image: Image) -> Image:
 
 
 def run_button(
-    run_btn,
-    input_image,
-    background_state,
-    foreground_ratio,
-    remesh_option,
-    vertex_count,
-    texture_size,
+    run_btn="Run",
+    input_image=None,
+    background_state=None,
+    foreground_ratio=0.85,
+    remesh_option="None",
+    vertex_count=-1,
+    texture_size=1024,
+    remove_background=False,  # New parameter
 ):
-    if run_btn == "Run":
-        if torch.cuda.is_available():
-            torch.cuda.reset_peak_memory_stats()
-        glb_file: str = run_model(
-            background_state, remesh_option.lower(), vertex_count, texture_size
-        )
-        if torch.cuda.is_available():
-            print("Peak Memory:", torch.cuda.max_memory_allocated() / 1024 / 1024, "MB")
-        elif torch.backends.mps.is_available():
-            print(
-                "Peak Memory:", torch.mps.driver_allocated_memory() / 1024 / 1024, "MB"
+
+    if remove_background:
+        if input_image is None:
+            return (
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(visible=False),
+                gr.update(visible=False),
             )
-
-        return (
-            gr.update(),
-            gr.update(),
-            gr.update(),
-            gr.update(),
-            gr.update(value=glb_file, visible=True),
-            gr.update(visible=True),
-        )
-    elif run_btn == "Remove Background":
         rem_removed = remove_background(input_image)
-
         sqr_crop = square_crop(rem_removed)
         fr_res = resize_foreground(sqr_crop, foreground_ratio)
+    else:
+        if input_image is None:
+            return (
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(visible=False),
+                gr.update(visible=False),
+            )
+        fr_res = resize_foreground(input_image, foreground_ratio)
 
-        return (
-            gr.update(value="Run", visible=True),
-            sqr_crop,
-            fr_res,
-            gr.update(value=show_mask_img(fr_res), visible=True),
-            gr.update(value=None, visible=False),
-            gr.update(visible=False),
-        )
+    glb_file: str = run_model(
+        fr_res, remesh_option.lower(), vertex_count, texture_size
+    )
+    return (
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        gr.update(),
+        gr.update(value=glb_file, visible=True),
+        gr.update(visible=True),
+    )
 
 
 def requires_bg_remove(image, fr):
@@ -250,7 +253,7 @@ def requires_bg_remove(image, fr):
         sqr_crop = square_crop(image)
         fr_res = resize_foreground(sqr_crop, fr)
         return (
-            gr.update(value="Run", visible=True),
+            gr.update(visible=True),
             sqr_crop,
             fr_res,
             gr.update(value=show_mask_img(fr_res), visible=True),
@@ -258,7 +261,7 @@ def requires_bg_remove(image, fr):
             gr.update(visible=False),
         )
     return (
-        gr.update(value="Remove Background", visible=True),
+        gr.update(visible=True, value="Remove Background"),
         None,
         None,
         gr.update(value=None, visible=False),
@@ -303,6 +306,13 @@ with gr.Blocks() as demo:
                     interactive=False,
                     visible=False,
                 )
+
+            # New Checkbox for Background Removal
+            remove_bg_checkbox = gr.Checkbox(
+                label="Remove Background",
+                value=False,
+                interactive=True,
+            )
 
             foreground_ratio = gr.Slider(
                 label="Foreground Ratio",
@@ -399,9 +409,8 @@ with gr.Blocks() as demo:
     run_btn.click(
         run_button,
         inputs=[
-            run_btn,
             input_img,
-            background_remove_state,
+            remove_bg_checkbox,
             foreground_ratio,
             remesh_option,
             vertex_count_slider,
@@ -417,4 +426,4 @@ with gr.Blocks() as demo:
         ],
     )
 
-demo.queue().launch(share=False)
+demo.queue().launch(share=True, show_error=True)
