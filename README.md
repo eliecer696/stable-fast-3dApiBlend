@@ -1,5 +1,9 @@
 # SF3D: Stable Fast 3D Mesh Reconstruction with UV-unwrapping and Illumination Disentanglement
+https://colab.research.google.com/drive/17fz6u_PpeKkw7sP9VeF2f5d7jdgko5ib?authuser=3#scrollTo=iOY4j2KkiZfp fast 
 
+https://colab.research.google.com/drive/17ArPNdIrnWPCPxz7WdhkLMvsT5rV7yHU?pli=1&authuser=4#scrollTo=C9W8eZY_S1iJ trip
+
+https://colab.research.google.com/drive/19_D5x_kncet55QVtUExQybP5nzYQs9cI?authuser=4 imagen
 <a href="https://arxiv.org/abs/2408.00653"><img src="https://img.shields.io/badge/Arxiv-2408.00653-B31B1B.svg"></a> <a href="https://huggingface.co/stabilityai/stable-fast-3d"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Model_Card-Huggingface-orange"></a> <a href="https://huggingface.co/spaces/stabilityai/stable-fast-3d"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Gradio%20Demo-Huggingface-orange"></a>
 
 <div align="center">
