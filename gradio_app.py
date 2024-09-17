@@ -119,7 +119,7 @@ def checkerboard(squares: int, size: int, min_value: float = 0.5):
     )
 
 
-def remove_background(input_image: Image) -> Image:
+def perform_background_removal(input_image: Image) -> Image:
     return rembg.remove(input_image, session=rembg_session)
 
 
@@ -187,94 +187,51 @@ def show_mask_img(input_image: Image) -> Image:
 
 
 def run_button(
-    run_btn="Run",
-    input_image=None,
-    background_state=None,
-    foreground_ratio=0.85,
-    remesh_option="None",
-    vertex_count=-1,
-    texture_size=1024,
-    remove_background=False,  # New parameter
+    input_image,
+    remove_background,
+    foreground_ratio,
+    remesh_option,
+    vertex_count,
+    texture_size,
 ):
-
-    if remove_background:
-        if input_image is None:
-            return (
-                gr.update(),
-                gr.update(),
-                gr.update(),
-                gr.update(),
-                gr.update(visible=False),
-                gr.update(visible=False),
-            )
-        rem_removed = remove_background(input_image)
-        sqr_crop = square_crop(rem_removed)
-        fr_res = resize_foreground(sqr_crop, foreground_ratio)
-    else:
-        if input_image is None:
-            return (
-                gr.update(),
-                gr.update(),
-                gr.update(),
-                gr.update(),
-                gr.update(visible=False),
-                gr.update(visible=False),
-            )
-        fr_res = resize_foreground(input_image, foreground_ratio)
-
-    glb_file: str = run_model(
-        fr_res, remesh_option.lower(), vertex_count, texture_size
-    )
-    return (
-        gr.update(),
-        gr.update(),
-        gr.update(),
-        gr.update(),
-        gr.update(value=glb_file, visible=True),
-        gr.update(visible=True),
-    )
-
-
-def requires_bg_remove(image, fr):
-    if image is None:
+    if input_image is None:
         return (
-            gr.update(visible=False, value="Run"),
             None,
             None,
             gr.update(value=None, visible=False),
             gr.update(visible=False),
             gr.update(visible=False),
         )
-    alpha_channel = np.array(image.getchannel("A"))
-    min_alpha = alpha_channel.min()
+    # Apply background removal if requested
+    if remove_background:
+        input_image = perform_background_removal(input_image)
 
-    if min_alpha == 0:
-        print("Already has alpha")
-        sqr_crop = square_crop(image)
-        fr_res = resize_foreground(sqr_crop, fr)
-        return (
-            gr.update(visible=True),
-            sqr_crop,
-            fr_res,
-            gr.update(value=show_mask_img(fr_res), visible=True),
-            gr.update(visible=False),
-            gr.update(visible=False),
-        )
+    # Prepare the image
+    sqr_crop = square_crop(input_image)
+    fr_res = resize_foreground(sqr_crop, foreground_ratio)
+    # Update preview_removal image
+    preview_image = show_mask_img(fr_res)
+    # Now, run the model
+    glb_file: str = run_model(
+        fr_res, remesh_option.lower(), vertex_count, texture_size
+    )
     return (
-        gr.update(visible=True, value="Remove Background"),
-        None,
-        None,
-        gr.update(value=None, visible=False),
-        gr.update(visible=False),
-        gr.update(visible=False),
+        fr_res,  # img_proc_state (updated image after processing)
+        fr_res,  # background_remove_state (can be same as img_proc_state)
+        gr.update(value=preview_image, visible=True),  # preview_removal
+        gr.update(value=glb_file, visible=True),  # output_3d
+        gr.update(visible=True),  # hdr_row
     )
 
 
 def update_foreground_ratio(img_proc, fr):
+    if img_proc is None:
+        return None, gr.update(value=None)
     foreground_res = resize_foreground(img_proc, fr)
+    preview_image = show_mask_img(foreground_res)
     return (
         foreground_res,
-        gr.update(value=show_mask_img(foreground_res)),
+        gr.update(value=preview_image),
     )
 
 
@@ -289,7 +246,7 @@ with gr.Blocks() as demo:
 
     **Tips**
     1. If the image already has an alpha channel, you can skip the background removal step.
-    2. You can adjust the foreground ratio to control the size of the foreground object. This can influence the shape
+    2. You can adjust the foreground ratio to control the size of the foreground object. This can influence the shape.
     3. You can select the remeshing option to control the mesh topology. This can introduce artifacts in the mesh on thin surfaces and should be turned off in such cases.
     4. You can upload your own HDR environment map to light the 3D model.
     """)
@@ -307,7 +264,7 @@ with gr.Blocks() as demo:
                     visible=False,
                 )
 
-            # New Checkbox for Background Removal
+            # Checkbox for Background Removal
             remove_bg_checkbox = gr.Checkbox(
                 label="Remove Background",
                 value=False,
@@ -325,7 +282,7 @@ with gr.Blocks() as demo:
             foreground_ratio.change(
                 update_foreground_ratio,
                 inputs=[img_proc_state, foreground_ratio],
-                outputs=[background_remove_state, preview_removal],
+                outputs=[img_proc_state, preview_removal],
             )
 
             remesh_option = gr.Radio(
@@ -352,7 +309,7 @@ with gr.Blocks() as demo:
                 visible=True,
             )
 
-            run_btn = gr.Button("Run", variant="primary", visible=False)
+            run_btn = gr.Button("Run", variant="primary")
 
         with gr.Column():
             output_3d = LitModel3D(
@@ -393,19 +350,6 @@ with gr.Blocks() as demo:
         inputs=input_img,
     )
 
-    input_img.change(
-        requires_bg_remove,
-        inputs=[input_img, foreground_ratio],
-        outputs=[
-            run_btn,
-            img_proc_state,
-            background_remove_state,
-            preview_removal,
-            output_3d,
-            hdr_row,
-        ],
-    )
-
     run_btn.click(
         run_button,
         inputs=[
@@ -417,7 +361,6 @@ with gr.Blocks() as demo:
             texture_size,
         ],
         outputs=[
-            run_btn,
             img_proc_state,
             background_remove_state,
             preview_removal,
